@@ -4,19 +4,10 @@
 @inject CircleCIService CircleCIService
 @inject AppVeyorService AppVeyorService
 
-<Styled @bind-Classname="@Styles.MaxWidth">
-    max-width: 85%;
-    position: relative;
-</Styled>
-<Styled @bind-Classname="@Styles.HalfPadding">
-    padding: 0.5rem;
-</Styled>
-<Styled @bind-Classname="@Styles.HalfMargin">
-    margin: 0.5rem;
-</Styled>
 <style>
-    .results-card {
-        max-width: 600px;
+    .width-limit {
+        max-width: 85%;
+        position: relative;
     }
     .results-content {
         padding: 1rem;
@@ -33,6 +24,7 @@
 
 @if (!ready)
 {
+    @* This goes by so fast it's not really worth giving fancy animations etc to. *@
     <p><em>Loading...</em></p>
 }
 else
@@ -41,7 +33,7 @@ else
     <DataAnnotationsValidator />
     <ValidationSummary />
     <MatDivider></MatDivider>
-<div class="mat-layout-grid mat-layout-grid-align-left @Styles.MaxWidth">
+<div class="mat-layout-grid mat-layout-grid-align-left width-limit">
     <div class="mat-layout-grid-inner">
         @* <div class="form-group"> *@
             <div class="mat-layout-grid-cell mat-layout-grid-cell-span-4">
@@ -94,15 +86,15 @@ else
     <div class="mat-layout-grid">
         <div class="mat-layout-grid-inner">
             <div class="mat-layout-grid-cell mat-layout-grid-cell-span-8">
-                <MatCard class="@Styles.MaxWidth">
-                    <div class="@Styles.HalfPadding">
+                <MatCard class="width-limit">
+                    <div style="padding: 0.5rem;">
                         <MatHeadline6 style="margin: 0px;">Build #@build.buildNumber Found!</MatHeadline6>
                         <MatCardContent>
                             <MatBody1 style="padding-top: 0.5em;">
                                 Successful build located for @_platform (@_package/@_arch)
                             </MatBody1>
                             @if (string.IsNullOrWhiteSpace(build.artifactLink)) {
-                                <MatBody2>@tooltip</MatBody2>
+                                <MatBody2>@_windowsHelpText</MatBody2>
                             }
                         </MatCardContent>
                         <MatCardActions>
@@ -119,8 +111,6 @@ else
 }
 
 @code {
-
-    private (string MaxWidth, string HalfMargin, string HalfPadding) Styles;
     private (string buildNumber, string buildLink, string artifactLink) build;
     private string _platform {get;set;}
     private string _package;
@@ -128,33 +118,15 @@ else
     private bool ready {get;set;} = false;
     private bool loading {get;set;}
     private List<string> availablePackages {get;set;} = new List<string>();
-        private List<string> availableArchitectures {get;set;} = new List<string>();
+    private List<string> availableArchitectures {get;set;} = new List<string>();
 
-        private BuildRequest buildReq = new BuildRequest();
-    private string tooltip = "Due to limitations in the AppVeyor API, Windows builds can't get direct downloads";
+    private BuildRequest buildReq = new BuildRequest(); //this doesn't actually do anything but EditForm seems unhappy if it doesn't have it.
+    private string _windowsHelpText = "Due to limitations in the AppVeyor API, Windows builds can't get direct downloads";
 
     protected override async Task OnInitializedAsync()
     {
+        // YAGNI bait: in case we need to initialize APIs or anything in future
         ready = true;
-    }
-
-    void OnUpdatePlatform(string platform)
-
-    {
-        List<string> GetPackagesForPlatform(string platform) {
-            switch (platform.ToLower()) {
-                case "linux":
-                    return new List<string> {"rpm", "deb"};
-                case "windows":
-                    return new List<string> {"exe"};
-                case "macos":
-                    return new List<string> {"zip"};
-                default:
-                    return null;
-            }
-        }
-        availablePackages = OnUpdateOptions(ref _package, platform ?? this._platform, GetPackagesForPlatform);
-        OnUpdatePackage(_package);
     }
 
     List<string> OnUpdateOptions(ref string key, string newValue, Func<string, IEnumerable<string>> valueFunc) {
@@ -167,24 +139,6 @@ else
             key = null;
         }
         return options.ToList();
-    }
-
-    void OnUpdatePackage(string package) {
-        string[] GetArchitectures(string package) {
-            if (package.IsEmpty()) return null;
-            switch (package.ToLower())
-            {
-                case "rpm":
-                case "deb":
-                    return new[] {"x86", "x64"};
-                case "exe":
-                    return new[] { "win32" };
-                default:
-                case "zip":
-                    return new[] {"x86_64"};
-            }}
-        availableArchitectures = OnUpdateOptions(ref _arch, package ?? this._package, GetArchitectures) ?? new List<string>();
-        //var archOptions = GetArchitectures(package ?? this._package);
     }
 
     private async void HandleValidSubmit()
@@ -206,11 +160,37 @@ else
 
     void OnPlatformInput(ChangeEventArgs e)
     {
-        build = (null, null, null);
-        OnUpdatePlatform(e.Value.ToString() ?? this._platform);
+        build = (null, null, null); // reset
+        List<string> GetPackagesForPlatform(string platform) {
+            switch (platform.ToLower()) {
+                case "linux":
+                    return new List<string> {"rpm", "deb"};
+                case "windows":
+                    return new List<string> {"exe"};
+                case "macos":
+                    return new List<string> {"zip"};
+                default:
+                    return null;
+            }
+        }
+        availablePackages = OnUpdateOptions(ref _package, e.Value.ToString() ?? this._platform, GetPackagesForPlatform);
+        OnFormatInput(null);
     }
 
     void OnFormatInput(ChangeEventArgs e) {
-        OnUpdatePackage(e.Value.ToString() ?? this._package);
+        string[] GetArchitectures(string package) {
+            if (package.IsEmpty()) return null;
+            switch (package.ToLower())
+            {
+                case "rpm":
+                case "deb":
+                    return new[] {"x86", "x64"};
+                case "exe":
+                    return new[] { "win32" };
+                default:
+                case "zip":
+                    return new[] {"x86_64"};
+            }}
+        availableArchitectures = OnUpdateOptions(ref _arch, e?.Value?.ToString() ?? this._package, GetArchitectures) ?? new List<string>();
     }
 }

@@ -3,9 +3,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using GPMDP.Release.Data;
 using GPMDP.Release.Services;
-using BlazorStyled;
 using EmbeddedBlazorContent;
 
 namespace GPMDP.Release
@@ -33,7 +31,6 @@ namespace GPMDP.Release
                     o.DetailedErrors = true;
                 }
             });
-            services.AddBlazorStyled();
             // services.AddSingleton<ITimerService, TimerService>();
             services.AddSingleton<CircleCIService>();
             services.AddSingleton<AppVeyorService>();

@@ -25,4 +25,11 @@ namespace GPMDP.Release
                     webBuilder.UseStartup<Startup>();
                 });
     }
+
+    public static class CoreExtensions
+    {
+        internal static bool IsEmpty(this string s) {
+            return string.IsNullOrWhiteSpace(s);
+        }
+    }
 }

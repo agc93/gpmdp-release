@@ -1,21 +1,31 @@
-﻿@page "/releases"
+﻿@page "/"
 
 @using GPMDP.Release.Data
 @inject CircleCIService CircleCIService
-@inject ITimerService TimerService
+@inject AppVeyorService AppVeyorService
 
 <Styled @bind-Classname="@Styles.MaxWidth">
     max-width: 85%;
     position: relative;
 </Styled>
-<Styled @bind-Classname="@Styles.AlignBottom">
-    position: absolute;
-    bottom: 1em;
+<Styled @bind-Classname="@Styles.HalfPadding">
+    padding: 0.5rem;
 </Styled>
-<Styled @bind-Classname="@Styles.IconFloat">
-    float: right;
-    margin-right: 1.25em;
+<Styled @bind-Classname="@Styles.HalfMargin">
+    margin: 0.5rem;
 </Styled>
+<style>
+    .results-card {
+        max-width: 600px;
+    }
+    .results-content {
+        padding: 1rem;
+    }
+    .results-actions {
+        margin: 0.5rem;
+        padding: 0.5rem;
+    }
+</style>
 
 <h1>Release Finder</h1>
 
@@ -64,7 +74,13 @@ else
             </div>
             <div class="mat-layout-grid-cell mat-layout-grid-cell-span-2">
                 @* <div class="mat-layout-grid-inner"> *@
-                    <mat-layout-grid-cell><MatButton Icon="search" Raised="true" type="submit" Disabled="@(_platform.IsEmpty() || _package.IsEmpty() || _arch.IsEmpty())">Find Build</MatButton></mat-layout-grid-cell>
+                    <mat-layout-grid-cell>
+                        @if(loading) {
+                            <SpinKitFoldingCube />
+                        } else {
+                            <MatButton Icon="search" Raised="true" type="submit" Disabled="@(_platform.IsEmpty() || _package.IsEmpty() || _arch.IsEmpty())">Find Build</MatButton>
+                        }
+                    </mat-layout-grid-cell>
                 @* </div> *@
             </div>
         @* </div> *@
@@ -74,17 +90,29 @@ else
 </EditForm>
 }
 
-@if (!string.IsNullOrWhiteSpace(buildLink)) {
+@if (!string.IsNullOrWhiteSpace(build.buildNumber)) {
     <div class="mat-layout-grid">
         <div class="mat-layout-grid-inner">
-            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-12">
-                <MatDivider></MatDivider>
-                <p id="sigText" class="card-text">@artifactLink</p>
-                <MatFAB class="@Styles.IconFloat" Icon="@MatIconNames.Flip_to_front" Label="Copy" style="float: right; margin-right: 1.25em;"></MatFAB>
-            </div>
-            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-12">
-                <MatDivider></MatDivider>
-                <p id="buildLink" class="card-text">@buildLink</p>
+            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-8">
+                <MatCard class="@Styles.MaxWidth">
+                    <div class="@Styles.HalfPadding">
+                        <MatHeadline6 style="margin: 0px;">Build #@build.buildNumber Found!</MatHeadline6>
+                        <MatCardContent>
+                            <MatBody1 style="padding-top: 0.5em;">
+                                Successful build located for @_platform (@_package/@_arch)
+                            </MatBody1>
+                            @if (string.IsNullOrWhiteSpace(build.artifactLink)) {
+                                <MatBody2>@tooltip</MatBody2>
+                            }
+                        </MatCardContent>
+                        <MatCardActions>
+                            <MatCardActionButtons>
+                                <MatButton class="results-actions" Link="@build.buildLink">Build Details</MatButton>
+                                <MatButton class="results-actions" Link="@build.artifactLink" Raised="true" Disabled="@string.IsNullOrWhiteSpace(build.artifactLink)">Direct Download</MatButton>
+                            </MatCardActionButtons>
+                        </MatCardActions>
+                    </div>
+                </MatCard>
             </div>
         </div>
     </div>
@@ -92,25 +120,25 @@ else
 
 @code {
 
-    private (string MaxWidth, string IconFloat, string AlignBottom) Styles;
-    private string artifactLink {get;set;}
-    private string buildLink {get;set;}
+    private (string MaxWidth, string HalfMargin, string HalfPadding) Styles;
+    private (string buildNumber, string buildLink, string artifactLink) build;
     private string _platform {get;set;}
     private string _package;
     private string _arch;
     private bool ready {get;set;} = false;
+    private bool loading {get;set;}
     private List<string> availablePackages {get;set;} = new List<string>();
         private List<string> availableArchitectures {get;set;} = new List<string>();
 
         private BuildRequest buildReq = new BuildRequest();
+    private string tooltip = "Due to limitations in the AppVeyor API, Windows builds can't get direct downloads";
 
     protected override async Task OnInitializedAsync()
     {
-        TimerService.OnTimerFinished = () => OnUpdatePlatform(this._platform);
         ready = true;
     }
 
-    async void OnUpdatePlatform(string platform)
+    void OnUpdatePlatform(string platform)
 
     {
         List<string> GetPackagesForPlatform(string platform) {
@@ -127,17 +155,6 @@ else
         }
         availablePackages = OnUpdateOptions(ref _package, platform ?? this._platform, GetPackagesForPlatform);
         OnUpdatePackage(_package);
-        /*
-        var packages = GetPackagesForPlatform(platform ?? this._platform);
-        
-        if (packages == null) return;
-        if (packages.Count == 1) {
-            _package = packages[0];
-        } else {
-            _package = null;
-        }
-        availablePackages = packages;
-        */
     }
 
     List<string> OnUpdateOptions(ref string key, string newValue, Func<string, IEnumerable<string>> valueFunc) {
@@ -172,13 +189,24 @@ else
 
     private async void HandleValidSubmit()
     {
+        this.loading = true;
         Console.WriteLine($"Requesting for {_platform}/{_package}/{_arch}");
-        var build = await CircleCIService.GetLatestArtifact(null);
-        Console.WriteLine(build.buildUrl);
+        if (_platform.ToLower() == "windows") {
+            var build = await AppVeyorService.GetLatestValidBuild();
+            this.build = (build.buildNumber, $"{build.buildUrl}/artifacts", null);
+            this.loading = false;
+        } else {
+            var build = await CircleCIService.GetLatestValidBuild();
+            var artifact = await CircleCIService.GetArtifactAsync(build.buildNumber, new BuildRequest(_platform, _package, _arch));
+            this.build = (build.buildNumber.ToString(), build.buildUrl.AbsoluteUri, artifact.artifactUri.AbsoluteUri);
+            this.loading = false;
+        }
+        StateHasChanged();
     }
 
     void OnPlatformInput(ChangeEventArgs e)
     {
+        build = (null, null, null);
         OnUpdatePlatform(e.Value.ToString() ?? this._platform);
     }
 

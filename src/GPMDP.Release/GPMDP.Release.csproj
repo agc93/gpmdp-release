@@ -8,6 +8,7 @@
   <ItemGroup>
     <PackageReference Include="BlazorStyled" Version="1.1.0" />
     <PackageReference Include="EmbeddedBlazorContent" Version="1.10.0" />
+    <PackageReference Include="Faso.Blazor.SpinKit" Version="1.0.1" />
     <PackageReference Include="Flurl" Version="2.8.2" />
     <PackageReference Include="Flurl.Http" Version="2.4.2" />
     <PackageReference Include="MatBlazor" Version="2.0.0" />

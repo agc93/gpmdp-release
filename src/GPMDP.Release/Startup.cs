@@ -34,8 +34,9 @@ namespace GPMDP.Release
                 }
             });
             services.AddBlazorStyled();
-            services.AddSingleton<ITimerService, TimerService>();
+            // services.AddSingleton<ITimerService, TimerService>();
             services.AddSingleton<CircleCIService>();
+            services.AddSingleton<AppVeyorService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

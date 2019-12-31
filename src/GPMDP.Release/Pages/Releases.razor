@@ -85,7 +85,7 @@ else
 @if (!string.IsNullOrWhiteSpace(build.buildNumber)) {
     <div class="mat-layout-grid">
         <div class="mat-layout-grid-inner">
-            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-8">
+            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-6">
                 <MatCard class="width-limit">
                     <div style="padding: 0.5rem;">
                         <MatHeadline6 style="margin: 0px;">Build #@build.buildNumber Found!</MatHeadline6>
@@ -106,12 +106,36 @@ else
                     </div>
                 </MatCard>
             </div>
+            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-6">
+                @if (builds != null && builds.Any()) {
+                    <MatAccordion>
+                    @foreach (var build in builds) {
+                        <MatExpansionPanel>
+                            <MatExpansionPanelSummary>
+                                <MatExpansionPanelHeader>Build #@build.buildNumber</MatExpansionPanelHeader>
+                                @* <MatExpansionPanelSubHeader></MatExpansionPanelSubHeader> *@
+                            </MatExpansionPanelSummary>
+                            <MatExpansionPanelDetails>
+                                @if (string.IsNullOrWhiteSpace(build.artifactLink)) {
+                                    <p>@_windowsHelpText</p>
+                                }
+                                <MatButton class="results-actions" Link="@build.buildLink">Build Details</MatButton>
+                                <MatButton class="results-actions" Link="@build.artifactLink" Raised="true" Disabled="@string.IsNullOrWhiteSpace(build.artifactLink)">Direct Download</MatButton>
+                            </MatExpansionPanelDetails>
+                        </MatExpansionPanel>
+                    }
+                    </MatAccordion>
+                } else {
+                    <SpinKitFoldingCube />
+                }
+            </div>
         </div>
     </div>
 }
 
 @code {
     private (string buildNumber, string buildLink, string artifactLink) build;
+    private List<(string buildNumber, string buildLink, string artifactLink)> builds;
     private string _platform {get;set;}
     private string _package;
     private string _arch;
@@ -145,15 +169,31 @@ else
     {
         this.loading = true;
         Console.WriteLine($"Requesting for {_platform}/{_package}/{_arch}");
+        var req = new BuildRequest(_platform, _package, _arch);
         if (_platform.ToLower() == "windows") {
-            var build = await AppVeyorService.GetLatestValidBuild();
-            this.build = (build.buildNumber, $"{build.buildUrl}/artifacts", null);
+            var builds = (await AppVeyorService.GetValidBuilds()).Take(6);
+            var build = builds.First();
+            this.build = (build.buildNumber.ToString(), $"{build.buildUrl}/artifacts", null);
             this.loading = false;
+            StateHasChanged();
+            var buildDetails = builds.Skip(1).Select(b => (b.buildNumber.ToString(), b.buildUrl.AbsoluteUri, string.Empty)).ToList();
+            this.builds = buildDetails;
+            
         } else {
-            var build = await CircleCIService.GetLatestValidBuild();
-            var artifact = await CircleCIService.GetArtifactAsync(build.buildNumber, new BuildRequest(_platform, _package, _arch));
+            var builds = (await CircleCIService.GetValidBuilds()).Take(6);
+            var build = builds.First();
+            //var build = await CircleCIService.GetLatestValidBuild();
+            var artifact = await CircleCIService.GetArtifactAsync(build.buildNumber, req);
             this.build = (build.buildNumber.ToString(), build.buildUrl.AbsoluteUri, artifact.artifactUri.AbsoluteUri);
             this.loading = false;
+            StateHasChanged();
+            var buildDetails = builds.Skip(1).Select(async b => {
+                var buildArtifact = await CircleCIService.GetArtifactAsync(b.buildNumber, req); 
+                return (b.buildNumber.ToString(), b.buildUrl.AbsoluteUri, buildArtifact.artifactUri.AbsoluteUri);
+                
+            }).ToList();
+            Console.WriteLine($"buildDetails: {buildDetails.Count}");
+            this.builds = (await Task.WhenAll(buildDetails)).ToList();
         }
         StateHasChanged();
     }

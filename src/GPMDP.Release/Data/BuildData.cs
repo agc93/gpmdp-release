@@ -51,6 +51,16 @@ namespace GPMDP.Release.Data
 
         [JsonPropertyName("branch")]
         public string Branch {get;set;}
+
+        [JsonPropertyName("workflows")]
+        public CircleCIWorkflow Workflows {get;set;}
+
+        public string JobName => Workflows?.JobName;
+    }
+
+    public class CircleCIWorkflow {
+        [JsonPropertyName("job_name")]
+        public string JobName {get;set;}
     }
 
     public class CircleCIArtifact {

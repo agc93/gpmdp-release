@@ -3,7 +3,6 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using GPMDP.Release.Services;
 using EmbeddedBlazorContent;
 
 namespace GPMDP.Release
@@ -32,8 +31,8 @@ namespace GPMDP.Release
                 }
             });
             // services.AddSingleton<ITimerService, TimerService>();
-            services.AddSingleton<CircleCIService>();
-            services.AddSingleton<AppVeyorService>();
+            services.AddSingleton<Services.CircleCIService>();
+            services.AddSingleton<Services.AppVeyorService>();
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

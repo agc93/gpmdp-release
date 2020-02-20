@@ -1,7 +1,6 @@
 using Flurl;
 using System;
 using System.Linq;
-using GPMDP.Release.Data;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Collections.Generic;
@@ -9,7 +8,7 @@ using System.Net.Http;
 
 namespace GPMDP.Release.Services
 {
-    public class CircleCIService : CIService
+    public class CircleCIService
     {
         public async Task<(int buildNumber, Uri buildUrl)> GetLatestValidBuild()
         {

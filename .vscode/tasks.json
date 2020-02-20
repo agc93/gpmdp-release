@@ -42,6 +42,20 @@
             ],
             "options": {"cwd": "${workspaceFolder}/src/GPMDP.Release"},
             "problemMatcher": "$msCompile"
+        },
+        {
+            "label": "watch-static",
+            "command": "dotnet",
+            "type": "process",
+            "args": [
+                "watch",
+                "run",
+                "${workspaceFolder}/src/GPMDP.Release.Static/GPMDP.Release.Static.csproj",
+                "/property:GenerateFullPaths=true",
+                "/consoleloggerparameters:NoSummary"
+            ],
+            "options": {"cwd": "${workspaceFolder}/src/GPMDP.Release.Static"},
+            "problemMatcher": "$msCompile"
         }
     ]
 }

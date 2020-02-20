@@ -1,0 +1,234 @@
+@using Microsoft.AspNetCore.Components.Web
+@using Microsoft.AspNetCore.Components.Forms
+@inject CircleCIService CircleCIService
+@inject AppVeyorService AppVeyorService
+
+<style>
+    .width-limit {
+        max-width: 85%;
+        position: relative;
+    }
+    .results-content {
+        padding: 1rem;
+    }
+    .results-actions {
+        margin: 0.5rem;
+        padding: 0.5rem;
+    }
+</style>
+
+<h1>Release Finder</h1>
+
+<p>This app will help with finding URLs of the latest GPMDP release since CircleCI is confusing and GPMDP hasn't released anything in 18 months.</p>
+
+@if (!ready)
+{
+    @* This goes by so fast it's not really worth giving fancy animations etc to. *@
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <EditForm Model="@buildReq" OnValidSubmit="@HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+    <MatDivider></MatDivider>
+<div class="mat-layout-grid mat-layout-grid-align-left width-limit">
+    <div class="mat-layout-grid-inner">
+        @* <div class="form-group"> *@
+            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-4">
+                <MatSelect Label="Pick your OS" @bind-Value="_platform" OnInput="@OnPlatformInput" Style="width:85%;" TValue="string">
+                    <MatOptionString Value=" "></MatOptionString>
+                    <MatOptionString Value="windows">Windows</MatOptionString>
+                    <MatOptionString Value="macos">macOS</MatOptionString>
+                    <MatOptionString Value="linux">Linux</MatOptionString>
+                </MatSelect>
+            </div>
+            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-2">
+                @if (_platform != null && availablePackages != null && availablePackages.Any()) {
+                    <MatSelect Disabled="@(availablePackages.Count == 1)" Label="Package Format" @bind-Value="_package" OnInput="@OnFormatInput" Style="width:85%;">
+                        <MatOptionString Value="_"></MatOptionString>
+                        @foreach (var package in availablePackages) {
+                            <MatOptionString Value="@package">@package</MatOptionString>
+                        }
+                    </MatSelect>
+                }
+            </div>
+            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-2">
+                @if (!_platform.IsEmpty() && !_package.IsEmpty()) {
+                    <MatSelect Disabled="@(availableArchitectures.Count == 1)" Label="Architecture" @bind-Value="_arch" Style="width:85%;">
+                        <MatOptionString Value="_"></MatOptionString>
+                        @foreach (var arch in availableArchitectures) {
+                            <MatOptionString Value="@arch">@arch</MatOptionString>
+                        }
+                    </MatSelect>
+                }
+            </div>
+            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-2">
+                    <mat-layout-grid-cell>
+                        @if(loading) {
+                            <SpinKitFoldingCube />
+                        } else {
+                            <MatButton Icon="search" Raised="true" type="submit" Disabled="@(_platform.IsEmpty() || _package.IsEmpty() || _arch.IsEmpty())">Find Build</MatButton>
+                        }
+                    </mat-layout-grid-cell>
+            </div>
+    </div>
+</div>
+<MatDivider></MatDivider>
+</EditForm>
+}
+
+@if (!string.IsNullOrWhiteSpace(build.buildNumber)) {
+    <div class="mat-layout-grid">
+        <div class="mat-layout-grid-inner">
+            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-6">
+                <MatCard class="width-limit">
+                    <div style="padding: 0.5rem;">
+                        <MatHeadline6 style="margin: 0px;">Build #@build.buildNumber Found!</MatHeadline6>
+                        <MatCardContent>
+                            <MatBody1 style="padding-top: 0.5em;">
+                                Successful build located for @_platform (@_package/@_arch)
+                            </MatBody1>
+                            @if (string.IsNullOrWhiteSpace(build.artifactLink)) {
+                                <MatBody2>@_windowsHelpText</MatBody2>
+                            }
+                        </MatCardContent>
+                        <MatCardActions>
+                            <MatCardActionButtons>
+                                <MatButton class="results-actions" Link="@build.buildLink">Build Details</MatButton>
+                                <MatButton class="results-actions" Link="@build.artifactLink" Raised="true" Disabled="@string.IsNullOrWhiteSpace(build.artifactLink)">Direct Download</MatButton>
+                            </MatCardActionButtons>
+                        </MatCardActions>
+                    </div>
+                </MatCard>
+            </div>
+            <div class="mat-layout-grid-cell mat-layout-grid-cell-span-6">
+                @if (builds != null && builds.Any()) {
+                    <MatAccordion>
+                    @foreach (var build in builds) {
+                        <MatExpansionPanel>
+                            <MatExpansionPanelSummary>
+                                <MatExpansionPanelHeader>Build #@build.buildNumber</MatExpansionPanelHeader>
+                                @* <MatExpansionPanelSubHeader></MatExpansionPanelSubHeader> *@
+                            </MatExpansionPanelSummary>
+                            <MatExpansionPanelDetails>
+                                @if (string.IsNullOrWhiteSpace(build.artifactLink)) {
+                                    <p>@_windowsHelpText</p>
+                                }
+                                <MatButton class="results-actions" Link="@build.buildLink">Build Details</MatButton>
+                                <MatButton class="results-actions" Link="@build.artifactLink" Raised="true" Disabled="@string.IsNullOrWhiteSpace(build.artifactLink)">Direct Download</MatButton>
+                            </MatExpansionPanelDetails>
+                        </MatExpansionPanel>
+                    }
+                    </MatAccordion>
+                } else {
+                    <SpinKitFoldingCube />
+                }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private (string buildNumber, string buildLink, string artifactLink) build;
+    private List<(string buildNumber, string buildLink, string artifactLink)> builds;
+    private string _platform {get;set;} = "";
+    private string _package = "";
+    private string _arch = "";
+    private bool ready {get;set;} = false;
+    private bool loading {get;set;} = false;
+    private List<string> availablePackages {get;set;} = new List<string>();
+    private List<string> availableArchitectures {get;set;} = new List<string>();
+
+    private BuildRequest buildReq = new BuildRequest(); //this doesn't actually do anything but EditForm seems unhappy if it doesn't have it.
+    private string _windowsHelpText = "Due to limitations in the AppVeyor API, Windows builds can't get direct downloads";
+
+    protected override async Task OnInitializedAsync()
+    {
+        // YAGNI bait: in case we need to initialize APIs or anything in future
+        ready = true;
+    }
+
+    List<string> OnUpdateOptions(ref string key, string newValue, Func<string, IEnumerable<string>> valueFunc) {
+        key = null;
+        var options = valueFunc.Invoke(newValue);
+        if (options == null) return null;
+        if (options.Count() == 1) {
+            key = options.First();
+        } else {
+            key = null;
+        }
+        return options.ToList();
+    }
+
+    private async void HandleValidSubmit()
+    {
+        this.loading = true;
+        Console.WriteLine($"Requesting for {_platform}/{_package}/{_arch}");
+        var req = new BuildRequest(_platform, _package, _arch);
+        if (_platform.ToLower() == "windows") {
+            var builds = (await AppVeyorService.GetValidBuilds()).Take(6);
+            var build = builds.First();
+            this.build = (build.buildNumber.ToString(), $"{build.buildUrl}/artifacts", null);
+            this.loading = false;
+            StateHasChanged();
+            var buildDetails = builds.Skip(1).Select(b => (b.buildNumber.ToString(), b.buildUrl.AbsoluteUri, string.Empty)).ToList();
+            this.builds = buildDetails;
+            
+        } else {
+            var builds = (await CircleCIService.GetValidBuilds()).Take(6);
+            var build = builds.First();
+            //var build = await CircleCIService.GetLatestValidBuild();
+            var artifact = await CircleCIService.GetArtifactAsync(build.buildNumber, req);
+            this.build = (build.buildNumber.ToString(), build.buildUrl.AbsoluteUri, artifact.artifactUri.AbsoluteUri);
+            this.loading = false;
+            StateHasChanged();
+            var buildDetails = builds.Skip(1).Select(async b => {
+                var buildArtifact = await CircleCIService.GetArtifactAsync(b.buildNumber, req); 
+                return (b.buildNumber.ToString(), b.buildUrl.AbsoluteUri, buildArtifact.artifactUri.AbsoluteUri);
+                
+            }).ToList();
+            Console.WriteLine($"buildDetails: {buildDetails.Count}");
+            this.builds = (await Task.WhenAll(buildDetails)).ToList();
+        }
+        StateHasChanged();
+    }
+
+    void OnPlatformInput(ChangeEventArgs e)
+    {
+        build = (null, null, null); // reset
+        List<string> GetPackagesForPlatform(string platform) {
+            switch (platform.ToLower()) {
+                case "linux":
+                    return new List<string> {"rpm", "deb"};
+                case "windows":
+                    return new List<string> {"exe"};
+                case "macos":
+                    return new List<string> {"zip"};
+                default:
+                    return null;
+            }
+        }
+        availablePackages = OnUpdateOptions(ref _package, e.Value.ToString() ?? this._platform, GetPackagesForPlatform);
+        OnFormatInput(null);
+        this._platform = e.Value.ToString();
+    }
+
+    void OnFormatInput(ChangeEventArgs e) {
+        string[] GetArchitectures(string package) {
+            if (package.IsEmpty()) return null;
+            switch (package.ToLower())
+            {
+                case "rpm":
+                case "deb":
+                    return new[] {"x86", "x64"};
+                case "exe":
+                    return new[] { "win32" };
+                default:
+                case "zip":
+                    return new[] {"x86_64"};
+            }}
+        availableArchitectures = OnUpdateOptions(ref _arch, e?.Value?.ToString() ?? this._package, GetArchitectures) ?? new List<string>();
+        if (e?.Value?.ToString() != null && !e.Value.ToString().IsEmpty()) this._package = e?.Value?.ToString();
+    }
+}

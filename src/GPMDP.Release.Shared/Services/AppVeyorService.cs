@@ -1,7 +1,6 @@
 using Flurl;
 using System;
 using System.Linq;
-using GPMDP.Release.Data;
 using System.Text.Json;
 using System.Threading.Tasks;
 using System.Net.Http;

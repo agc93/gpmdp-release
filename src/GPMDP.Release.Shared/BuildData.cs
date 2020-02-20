@@ -2,8 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
-namespace GPMDP.Release.Data
+namespace GPMDP.Release
 {
+    public static class CoreExtensions
+    {
+        internal static bool IsEmpty(this string s) {
+            return string.IsNullOrWhiteSpace(s) && s != "_";
+        }
+    }
+
     public class BuildRequest
     {
         public BuildRequest() {}
